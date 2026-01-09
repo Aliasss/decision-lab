@@ -29,9 +29,13 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6">
       <div className="max-w-md w-full text-center">
-        <h1 className="text-2xl font-medium text-foreground mb-12">
-          지금 결정을 앞두고 있나요?
+        <h1 className="text-2xl font-medium text-foreground mb-4">
+          결정을 앞두고 느끼는 불안을, 구조로 정리해 보여주는 도구입니다.
         </h1>
+
+        <p className="text-sm text-muted mb-12">
+          조언이나 추천은 제공하지 않습니다.
+        </p>
 
         <div className="flex flex-col gap-4">
           <button
