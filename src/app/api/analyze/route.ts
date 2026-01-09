@@ -1,7 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { AnalysisResult, AnalysisResponse } from '@/lib/types';
+import type { AnalysisResult, AnalysisResponse, AnxietyDriver } from '@/lib/types';
 
-// MCP 룰 섹션 4: AI 출력 규칙 (JSON 계약)
+// ============================================
+// meta_question 질문 타입 시스템 (v4)
+// ============================================
+
+// 질문 타입별 키워드 정의
+const QUESTION_TYPE_KEYWORDS = {
+  A: ['반복', '항상', '자주', '매번', '또다시', '미루', '되풀이', '같은 상황', '늘', '계속', '패턴', '습관'],
+  B: ['불확실', '미래', '예측', '결과', '통제', '리스크', '가능성', '변수', '모르', '어떻게 될', '확신', '보장'],
+  C: ['정체성', '증명', '후회', '타인', '시선', '실패', '평가', '의미', '나라는', '어떤 사람', '자격', '능력'],
+};
+
+// 질문 템플릿 정의 (재사용 유도용)
+const QUESTION_TEMPLATES = {
+  A: [
+    '이 불안은 이전 결정들과 어떤 점에서 반복되고 있나요?',
+    '과거에도 비슷한 선택 앞에서 같은 불안을 느낀 적이 있었나요?',
+  ],
+  B: [
+    '이 결정에서 당신이 통제할 수 없는 요소는 무엇인가요?',
+    '결과와 상관없이, 지금 당신이 붙잡고 있는 가정은 무엇인가요?',
+  ],
+  C: [
+    '이 불안은 결과에 대한 걱정인가요, 아니면 당신 자신에 대한 평가인가요?',
+    '이 선택이 당신을 어떤 사람으로 규정할까 봐 불안한가요?',
+  ],
+};
+
+// drivers 기반으로 질문 타입 선택
+function selectQuestionType(drivers: AnxietyDriver[]): 'A' | 'B' | 'C' {
+  const scores = { A: 0, B: 0, C: 0 };
+
+  // drivers의 name + evidence 텍스트에서 키워드 매칭
+  const allText = drivers.map((d) => `${d.name} ${d.evidence}`).join(' ').toLowerCase();
+
+  for (const [type, keywords] of Object.entries(QUESTION_TYPE_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (allText.includes(keyword.toLowerCase())) {
+        scores[type as 'A' | 'B' | 'C']++;
+      }
+    }
+  }
+
+  // 가장 높은 점수의 타입 선택 (동점이면 A > B > C 우선순위)
+  if (scores.A >= scores.B && scores.A >= scores.C) return 'A';
+  if (scores.B >= scores.C) return 'B';
+  return 'C';
+}
+
+// 질문 타입에서 템플릿 랜덤 선택
+function selectMetaQuestion(drivers: AnxietyDriver[]): string {
+  const type = selectQuestionType(drivers);
+  const templates = QUESTION_TEMPLATES[type];
+  const randomIndex = Math.floor(Math.random() * templates.length);
+  return templates[randomIndex];
+}
+
+// ============================================
+// AI 프롬프트 (meta_question 생성 제거)
+// ============================================
+
 const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 도구입니다.
 
 절대 하지 말아야 할 것:
@@ -15,7 +74,6 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
 해야 할 것:
 - 사용자의 텍스트에서 불안의 구조를 분석
 - 불안을 만드는 요인(드라이버)을 명명
-- 성찰을 유도하는 질문 제시 (조언 아님)
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
@@ -25,28 +83,30 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
       "name": "불안 요인 명칭 (개념화된 이름)",
       "evidence": "사용자 텍스트에서 찾은 근거 요약 (최소 12자 이상)"
     }
-  ],
-  "meta_question": "조언이 아닌 성찰 질문 1개. 행동 지시 금지",
-  "disallowed_check": {
-    "contains_advice": false,
-    "contains_recommendation": false,
-    "contains_rankings": false
-  }
+  ]
 }
 
 drivers는 3~5개 사이로 제한합니다.
 각 evidence는 최소 12자 이상으로 작성합니다.
 JSON 외의 텍스트는 절대 포함하지 마세요.`;
 
-// 안전 메시지 (JSON 파싱 실패 시) - drivers 3개로 수정
+// AI 응답 파싱용 타입 (meta_question 없음)
+interface AIResponse {
+  summary: string;
+  drivers: AnxietyDriver[];
+}
+
+// 안전 메시지 (JSON 파싱 실패 시)
+const FALLBACK_DRIVERS: AnxietyDriver[] = [
+  { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.' },
+  { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.' },
+  { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.' },
+];
+
 const FALLBACK_RESULT: AnalysisResult = {
   summary: '입력하신 내용을 분석하는 데 어려움이 있었습니다. 다시 시도해 주세요.',
-  drivers: [
-    { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.' },
-    { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.' },
-    { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.' },
-  ],
-  meta_question: '무엇이 가장 마음에 걸리나요?',
+  drivers: FALLBACK_DRIVERS,
+  meta_question: selectMetaQuestion(FALLBACK_DRIVERS),
   disallowed_check: {
     contains_advice: false,
     contains_recommendation: false,
@@ -82,17 +142,17 @@ function containsDisallowedPatterns(text: string): boolean {
   return DISALLOWED_PATTERNS.some((pattern) => lowerText.includes(pattern.toLowerCase()));
 }
 
-// JSON 파싱 및 검증
-function parseAndValidate(content: string): AnalysisResult | null {
+// JSON 파싱 및 검증 (AI는 summary + drivers만 반환)
+function parseAndValidate(content: string): AIResponse | null {
   try {
     // JSON 블록 추출 시도
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
 
-    const parsed = JSON.parse(jsonMatch[0]) as AnalysisResult;
+    const parsed = JSON.parse(jsonMatch[0]) as AIResponse;
 
     // 필수 필드 검증
-    if (!parsed.summary || !parsed.drivers || !parsed.meta_question) {
+    if (!parsed.summary || !parsed.drivers) {
       return null;
     }
 
@@ -108,11 +168,8 @@ function parseAndValidate(content: string): AnalysisResult | null {
       }
     }
 
-    // 금지 패턴 탐지 (summary, meta_question)
+    // 금지 패턴 탐지 (summary)
     if (containsDisallowedPatterns(parsed.summary)) {
-      return null;
-    }
-    if (containsDisallowedPatterns(parsed.meta_question)) {
       return null;
     }
 
@@ -143,11 +200,11 @@ export async function POST(request: NextRequest) {
     }
 
     // OpenAI API 호출
-    let result: AnalysisResult | null = null;
+    let aiResponse: AIResponse | null = null;
     let retryCount = 0;
     const maxRetries = 2;
 
-    while (!result && retryCount < maxRetries) {
+    while (!aiResponse && retryCount < maxRetries) {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -176,19 +233,40 @@ export async function POST(request: NextRequest) {
       const content = data.choices?.[0]?.message?.content;
 
       if (content) {
-        result = parseAndValidate(content);
+        aiResponse = parseAndValidate(content);
       }
 
-      if (!result) {
+      if (!aiResponse) {
         retryCount++;
       }
     }
 
-    // 실패 시 안전 메시지 반환
-    if (!result) {
+    // 최종 결과 조합
+    let result: AnalysisResult;
+    let isFallback = false;
+
+    if (aiResponse) {
+      // AI 응답 성공: drivers 기반으로 meta_question 선택
+      const metaQuestion = selectMetaQuestion(aiResponse.drivers);
+      result = {
+        summary: aiResponse.summary,
+        drivers: aiResponse.drivers,
+        meta_question: metaQuestion,
+        disallowed_check: {
+          contains_advice: false,
+          contains_recommendation: false,
+          contains_rankings: false,
+        },
+      };
+    } else {
+      // AI 응답 실패: fallback 사용
       console.log('Using fallback result after retries');
       result = FALLBACK_RESULT;
+      isFallback = true;
     }
+
+    // 선택된 질문 타입 로깅
+    const questionType = selectQuestionType(result.drivers);
 
     // 로깅 (Vercel 로그에 기록됨)
     console.log(
@@ -197,7 +275,8 @@ export async function POST(request: NextRequest) {
         ts: new Date().toISOString(),
         input_len: text.length,
         drivers_count: result.drivers.length,
-        is_fallback: result === FALLBACK_RESULT,
+        question_type: questionType,
+        is_fallback: isFallback,
       })
     );
 

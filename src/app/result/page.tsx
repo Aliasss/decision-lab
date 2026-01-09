@@ -105,6 +105,9 @@ export default function ResultPage() {
             생각해볼 질문
           </h2>
           <p className="text-lg text-foreground font-medium">{result.meta_question}</p>
+          <p className="text-xs text-muted mt-4">
+            비슷한 결정 앞에서도, 이 질문은 다시 사용할 수 있습니다.
+          </p>
         </section>
 
         {/* 피드백 질문 */}
