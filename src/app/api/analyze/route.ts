@@ -23,7 +23,7 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
   "drivers": [
     {
       "name": "불안 요인 명칭 (개념화된 이름)",
-      "evidence": "사용자 텍스트에서 찾은 근거 요약"
+      "evidence": "사용자 텍스트에서 찾은 근거 요약 (최소 12자 이상)"
     }
   ],
   "meta_question": "조언이 아닌 성찰 질문 1개. 행동 지시 금지",
@@ -35,21 +35,52 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
 }
 
 drivers는 3~5개 사이로 제한합니다.
+각 evidence는 최소 12자 이상으로 작성합니다.
 JSON 외의 텍스트는 절대 포함하지 마세요.`;
 
-// 안전 메시지 (JSON 파싱 실패 시)
+// 안전 메시지 (JSON 파싱 실패 시) - drivers 3개로 수정
 const FALLBACK_RESULT: AnalysisResult = {
   summary: '입력하신 내용을 분석하는 데 어려움이 있었습니다. 다시 시도해 주세요.',
   drivers: [
-    { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.' }
+    { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.' },
+    { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.' },
+    { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.' },
   ],
   meta_question: '무엇이 가장 마음에 걸리나요?',
   disallowed_check: {
     contains_advice: false,
     contains_recommendation: false,
-    contains_rankings: false
-  }
+    contains_rankings: false,
+  },
 };
+
+// 금지 패턴 목록 (조언/추천 탐지용)
+const DISALLOWED_PATTERNS = [
+  '추천',
+  '나라면',
+  '더 나은',
+  '정답',
+  '선택해',
+  '하는 게 낫',
+  '하는게 낫',
+  '해야 합니다',
+  '해야합니다',
+  '하세요',
+  '하시는 게',
+  '하시는게',
+  'A가 낫',
+  'B가 낫',
+  '좋을 것 같',
+  '좋을것 같',
+  '권합니다',
+  '권해드립니다',
+];
+
+// 금지 패턴 탐지
+function containsDisallowedPatterns(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return DISALLOWED_PATTERNS.some((pattern) => lowerText.includes(pattern.toLowerCase()));
+}
 
 // JSON 파싱 및 검증
 function parseAndValidate(content: string): AnalysisResult | null {
@@ -67,6 +98,21 @@ function parseAndValidate(content: string): AnalysisResult | null {
 
     // drivers 개수 검증 (3~5개)
     if (parsed.drivers.length < 3 || parsed.drivers.length > 5) {
+      return null;
+    }
+
+    // evidence 길이 검증 (최소 12자)
+    for (const driver of parsed.drivers) {
+      if (!driver.evidence || driver.evidence.length < 12) {
+        return null;
+      }
+    }
+
+    // 금지 패턴 탐지 (summary, meta_question)
+    if (containsDisallowedPatterns(parsed.summary)) {
+      return null;
+    }
+    if (containsDisallowedPatterns(parsed.meta_question)) {
       return null;
     }
 
@@ -106,13 +152,13 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: text }
+            { role: 'user', content: text },
           ],
           temperature: 0.7,
           max_tokens: 1000,
@@ -145,17 +191,20 @@ export async function POST(request: NextRequest) {
     }
 
     // 로깅 (Vercel 로그에 기록됨)
-    console.log('[Analysis]', {
-      timestamp: new Date().toISOString(),
-      textLength: text.length,
-      driversCount: result.drivers.length,
-    });
+    console.log(
+      JSON.stringify({
+        type: 'analysis',
+        ts: new Date().toISOString(),
+        input_len: text.length,
+        drivers_count: result.drivers.length,
+        is_fallback: result === FALLBACK_RESULT,
+      })
+    );
 
     return NextResponse.json<AnalysisResponse>({
       success: true,
       data: result,
     });
-
   } catch (error) {
     console.error('Analysis error:', error);
     return NextResponse.json<AnalysisResponse>(
@@ -164,4 +213,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

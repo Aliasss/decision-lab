@@ -21,7 +21,7 @@ function generateUUID(): string {
 // 사용자 ID 가져오기 (없으면 생성)
 export function getUserId(): string {
   if (typeof window === 'undefined') return '';
-  
+
   let userId = localStorage.getItem(STORAGE_KEYS.PSEUDO_USER_ID);
   if (!userId) {
     userId = generateUUID();
@@ -30,7 +30,7 @@ export function getUserId(): string {
   return userId;
 }
 
-// 세션 ID 생성
+// 세션 ID 생성 ('예' 클릭 시점에 호출)
 export function createSessionId(): string {
   const sessionId = generateUUID();
   if (typeof window !== 'undefined') {
@@ -39,16 +39,28 @@ export function createSessionId(): string {
   return sessionId;
 }
 
-// 현재 세션 ID 가져오기
+// 현재 세션 ID 가져오기 (없으면 빈 문자열 반환, 자동 생성 안함)
 export function getSessionId(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION) || createSessionId();
+  return localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION) || '';
+}
+
+// 세션 ID 존재 여부 확인
+export function hasSessionId(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
+}
+
+// 세션 ID 삭제 (새 분석 시작 시)
+export function clearSessionId(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION);
 }
 
 // 사용 횟수 증가
 export function incrementUsageCount(): number {
   if (typeof window === 'undefined') return 0;
-  
+
   const current = parseInt(localStorage.getItem(STORAGE_KEYS.USAGE_COUNT) || '0', 10);
   const newCount = current + 1;
   localStorage.setItem(STORAGE_KEYS.USAGE_COUNT, String(newCount));
@@ -85,4 +97,3 @@ export function clearPendingText(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEYS.PENDING_TEXT);
 }
-

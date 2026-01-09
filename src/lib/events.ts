@@ -3,7 +3,7 @@
 
 import { getUserId, getSessionId } from './storage';
 
-export type EventType = 
+export type EventType =
   | 'landing_view'
   | 'landing_yes'
   | 'landing_no'
@@ -15,28 +15,30 @@ export type EventType =
 
 interface EventPayload {
   event: EventType;
-  userId: string;
-  sessionId: string;
-  timestamp: string;
+  ts: string;
+  pseudo_user_id: string;
+  session_id: string;
+  path: string;
   data?: Record<string, unknown>;
 }
 
 // 이벤트 로깅 (서버로 전송)
 export async function logEvent(
-  event: EventType, 
+  event: EventType,
   data?: Record<string, unknown>
 ): Promise<void> {
   const payload: EventPayload = {
     event,
-    userId: getUserId(),
-    sessionId: getSessionId(),
-    timestamp: new Date().toISOString(),
+    ts: new Date().toISOString(),
+    pseudo_user_id: getUserId(),
+    session_id: getSessionId(),
+    path: typeof window !== 'undefined' ? window.location.pathname : '',
     data,
   };
 
   // 개발 환경에서는 콘솔에 출력
   if (process.env.NODE_ENV === 'development') {
-    console.log('[Event]', payload);
+    console.log('[Event]', JSON.stringify(payload));
   }
 
   // 서버로 이벤트 전송
@@ -51,4 +53,3 @@ export async function logEvent(
     console.error('[Event Error]', error);
   }
 }
-

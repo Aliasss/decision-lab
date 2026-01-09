@@ -3,18 +3,20 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { logEvent } from '@/lib/events';
-import { createSessionId } from '@/lib/storage';
+import { createSessionId, clearSessionId } from '@/lib/storage';
 
 export default function LandingPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // 새 세션 시작
-    createSessionId();
+    // 랜딩 페이지 진입 시 이전 세션 정리
+    clearSessionId();
     logEvent('landing_view');
   }, []);
 
   const handleYes = () => {
+    // '예' 클릭 시점에 세션 생성
+    createSessionId();
     logEvent('landing_yes');
     router.push('/write');
   };
@@ -29,8 +31,8 @@ export default function LandingPage() {
       <div className="max-w-md w-full text-center">
         <h1 className="text-2xl font-medium text-foreground mb-12">
           지금 결정을 앞두고 있나요?
-          </h1>
-        
+        </h1>
+
         <div className="flex flex-col gap-4">
           <button
             onClick={handleYes}
@@ -38,7 +40,7 @@ export default function LandingPage() {
           >
             예
           </button>
-          
+
           <button
             onClick={handleNo}
             className="w-full py-4 px-6 bg-transparent border border-border text-foreground rounded-lg text-lg font-medium hover:bg-stone-100 transition-colors"
@@ -46,7 +48,7 @@ export default function LandingPage() {
             아니오
           </button>
         </div>
-        </div>
-      </main>
+      </div>
+    </main>
   );
 }
