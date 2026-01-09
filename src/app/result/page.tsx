@@ -92,15 +92,28 @@ export default function ResultPage() {
                 className="p-4 border border-border rounded-lg bg-white break-words"
                 style={{ overflowWrap: 'anywhere' }}
               >
-                <h3 className="font-medium text-foreground mb-1">{driver.name}</h3>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <h3 className="font-medium text-foreground">{driver.name}</h3>
+                  {driver.role && (
+                    <span className="text-xs text-muted">({driver.role})</span>
+                  )}
+                </div>
                 <p className="text-sm text-muted">{driver.evidence}</p>
               </div>
             ))}
           </div>
+          {/* 재사용 암시 문구 */}
+          <p className="text-xs text-muted mt-4">
+            비슷한 결정 상황에서도, 이 불안 드라이버는 다시 나타날 수 있습니다.
+          </p>
         </section>
 
         {/* 섹션 3: 메타 질문 */}
         <section className="mb-12 p-6 bg-stone-100 rounded-lg">
+          {/* 연결 암시 문구 */}
+          <p className="text-xs text-muted mb-3">
+            위의 불안 드라이버 중 하나에서 이어진 질문입니다.
+          </p>
           <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
             생각해볼 질문
           </h2>

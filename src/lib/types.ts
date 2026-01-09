@@ -3,6 +3,7 @@
 export interface AnxietyDriver {
   name: string;
   evidence: string;
+  role?: string; // v5: 역할 태그 (서버에서 추가)
 }
 
 export interface DisallowedCheck {
@@ -24,4 +25,3 @@ export interface AnalysisResponse {
   data?: AnalysisResult;
   error?: string;
 }
-

@@ -2,6 +2,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { AnalysisResult, AnalysisResponse, AnxietyDriver } from '@/lib/types';
 
 // ============================================
+// 역할 태그 시스템 (v5)
+// ============================================
+
+// 역할 태그 키워드 매핑
+const ROLE_TAG_KEYWORDS: Record<string, string[]> = {
+  '현재를 붙잡게 만드는 힘': ['안정', '유지', '현재', '익숙', '편안', '지금'],
+  '변화를 막는 힘': ['변화', '바꾸', '전환', '이동', '떠나'],
+  '미래를 두렵게 만드는 힘': ['미래', '앞으로', '나중', '언젠가', '될지'],
+  '결정을 미루게 만드는 힘': ['불확실', '모르', '확신', '보장', '예측'],
+  '통제 욕구를 키우는 힘': ['통제', '관리', '컨트롤', '조절', '잡고'],
+  '자기 평가를 흔드는 힘': ['정체성', '나라는', '자격', '능력', '가치'],
+  '타인 시선에 묶이게 하는 힘': ['타인', '시선', '평가', '인정', '기대', '실망'],
+  '과거에 붙잡히게 하는 힘': ['후회', '과거', '그때', '했었', '잘못'],
+  '시도를 막는 힘': ['실패', '실수', '잃', '망하', '안되'],
+  '현재를 부정하게 만드는 힘': ['비교', '남들', '다른 사람', '더 나은', '뒤처'],
+};
+
+// 기본 역할 태그
+const DEFAULT_ROLE_TAG = '불안을 키우는 힘';
+
+// driver.name에서 역할 태그 선택
+function selectRoleTag(driverName: string): string {
+  const lowerName = driverName.toLowerCase();
+
+  for (const [tag, keywords] of Object.entries(ROLE_TAG_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (lowerName.includes(keyword.toLowerCase())) {
+        return tag;
+      }
+    }
+  }
+
+  return DEFAULT_ROLE_TAG;
+}
+
+// drivers에 역할 태그 추가
+function addRoleTags(drivers: AnxietyDriver[]): AnxietyDriver[] {
+  return drivers.map((driver) => ({
+    ...driver,
+    role: selectRoleTag(driver.name),
+  }));
+}
+
+// ============================================
 // meta_question 질문 타입 시스템 (v4)
 // ============================================
 
@@ -58,7 +102,7 @@ function selectMetaQuestion(drivers: AnxietyDriver[]): string {
 }
 
 // ============================================
-// AI 프롬프트 (meta_question 생성 제거)
+// AI 프롬프트 (v5: 제목 추상화 지시 추가)
 // ============================================
 
 const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 도구입니다.
@@ -75,12 +119,18 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
 - 사용자의 텍스트에서 불안의 구조를 분석
 - 불안을 만드는 요인(드라이버)을 명명
 
+중요: 드라이버 이름 작성 규칙
+- 이번 상황 전용 표현이 아닌, 반복 가능한 개념으로 작성
+- 예시: "이직에 대한 두려움" (X) → "변화에 대한 저항" (O)
+- 예시: "연봉 협상 불안" (X) → "불확실성 회피" (O)
+- 다른 결정 상황에서도 적용될 수 있는 추상적 개념으로 명명
+
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "summary": "불안을 구조적으로 설명하는 2~3문장. 감정 위로 없이 구조만 설명",
   "drivers": [
     {
-      "name": "불안 요인 명칭 (개념화된 이름)",
+      "name": "불안 요인 명칭 (반복 가능한 개념)",
       "evidence": "사용자 텍스트에서 찾은 근거 요약 (최소 12자 이상)"
     }
   ]
@@ -90,17 +140,17 @@ drivers는 3~5개 사이로 제한합니다.
 각 evidence는 최소 12자 이상으로 작성합니다.
 JSON 외의 텍스트는 절대 포함하지 마세요.`;
 
-// AI 응답 파싱용 타입 (meta_question 없음)
+// AI 응답 파싱용 타입 (meta_question, role 없음 - 서버에서 추가)
 interface AIResponse {
   summary: string;
-  drivers: AnxietyDriver[];
+  drivers: Array<{ name: string; evidence: string }>;
 }
 
 // 안전 메시지 (JSON 파싱 실패 시)
 const FALLBACK_DRIVERS: AnxietyDriver[] = [
-  { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.' },
-  { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.' },
-  { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.' },
+  { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.', role: DEFAULT_ROLE_TAG },
+  { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.', role: DEFAULT_ROLE_TAG },
+  { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.', role: DEFAULT_ROLE_TAG },
 ];
 
 const FALLBACK_RESULT: AnalysisResult = {
@@ -246,11 +296,12 @@ export async function POST(request: NextRequest) {
     let isFallback = false;
 
     if (aiResponse) {
-      // AI 응답 성공: drivers 기반으로 meta_question 선택
-      const metaQuestion = selectMetaQuestion(aiResponse.drivers);
+      // AI 응답 성공: drivers에 역할 태그 추가 + meta_question 선택
+      const driversWithRoles = addRoleTags(aiResponse.drivers);
+      const metaQuestion = selectMetaQuestion(driversWithRoles);
       result = {
         summary: aiResponse.summary,
-        drivers: aiResponse.drivers,
+        drivers: driversWithRoles,
         meta_question: metaQuestion,
         disallowed_check: {
           contains_advice: false,
