@@ -30,8 +30,6 @@ OPENAI_API_KEY=sk-your-api-key-here
 npm run dev
 ```
 
-http://localhost:3000 에서 확인할 수 있습니다.
-
 ## 페이지 구조
 
 | 경로 | 설명 |
