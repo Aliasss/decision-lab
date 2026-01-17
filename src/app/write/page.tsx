@@ -8,6 +8,16 @@ import { savePendingText, getPendingText, hasSessionId } from '@/lib/storage';
 const MIN_LENGTH = 200;
 const MIN_SENTENCES = 3;
 
+// SHA-256 해시 생성 (Web Crypto API)
+async function generateHash(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 16); // 앞 16자만 사용
+}
+
 function countSentences(text: string): number {
   // 한국어/영어 문장 종결 패턴
   const sentences = text.split(/[.!?。]+/).filter((s) => s.trim().length > 0);
@@ -78,7 +88,14 @@ export default function WritePage() {
 
     setIsSubmitting(true);
     setError(null);
-    logEvent('submit', { input_len: charCount, sentence_count: sentenceCount });
+    
+    // input_hash 생성 후 이벤트 로깅
+    const inputHash = await generateHash(text);
+    logEvent('submit', { 
+      input_len: charCount, 
+      sentence_count: sentenceCount,
+      input_hash: inputHash 
+    });
 
     try {
       const response = await fetch('/api/analyze', {

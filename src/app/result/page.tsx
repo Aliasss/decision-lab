@@ -44,7 +44,18 @@ export default function ResultPage() {
       const parsed = JSON.parse(stored);
       if (parsed.success && parsed.data) {
         setResult(parsed.data);
-        logEvent('result_view', { drivers_count: parsed.data.drivers?.length || 0 });
+        
+        // drivers_summary 생성 (name, roleCategory만 추출)
+        const driversSummary = parsed.data.drivers?.map((d: { name: string; roleCategory?: string }) => ({
+          name: d.name,
+          roleCategory: d.roleCategory || 'sustain',
+        })) || [];
+        
+        logEvent('result_view', { 
+          drivers_count: parsed.data.drivers?.length || 0,
+          drivers_summary: driversSummary,
+          meta_question: parsed.data.meta_question || '',
+        });
         incrementUsageCount();
         clearPendingText();
       } else {
