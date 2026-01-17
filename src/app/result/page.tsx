@@ -115,6 +115,16 @@ export default function ResultPage() {
           </p>
         </section>
 
+        {/* 섹션: 구조 흐름 설명 */}
+        <section className="mb-10 p-5 bg-slate-50 rounded-lg border border-border">
+          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
+            이 불안이 작동하는 흐름
+          </h2>
+          <p className="text-base text-foreground leading-relaxed">
+            {result.structure_flow}
+          </p>
+        </section>
+
         {/* 섹션 3: 메타 질문 */}
         <section className="mb-12 p-6 bg-accent/5 border border-accent/20 rounded-lg">
           {/* 연결 암시 문구 */}

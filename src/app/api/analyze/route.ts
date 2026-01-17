@@ -198,6 +198,17 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
 - 좋은 예시: "신뢰를 잃을 수 있다고 느낄 때, 책임을 혼자 떠안는 방향으로 움직이게 된다"
 - 나쁜 예시: "너무 멍청하고 바보 같다고 느끼는 순간들이 많아지고 있다" (직접 지칭)
 
+중요: structure_flow 작성 규칙 (드라이버들이 동시에 작동하는 방식 설명)
+- 최대 3~4문장, 한 문단으로 작성
+- 드라이버 이름을 직접 나열하지 않음
+- 원인 → 결과 단정 금지 ("그래서", "때문에"로 끝나는 문장 금지)
+- 동시 작동 / 상호 강화 구조로 서술
+- 허용 표현: "~일 때 ~한 상태가 겹치며", "~가 커진 상황에서", "~이 유지되는 구조가 만들어진다"
+- 일상적 물리 비유 1~2회만 허용 (명사 고정 금지)
+- 허용 비유: "균형을 잃고 흔들리는 상태", "한 지점에서 힘만 쓰고 앞으로 나아가지 못하는 느낌"
+- 금지: 병목, 시스템, 회로, 부하 같은 공학 용어
+- 금지: 해결책, 대처법, 행동 제안
+
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "summary": "불안을 구조적으로 설명하는 2~3문장. 감정 위로 없이 구조만 설명",
@@ -206,17 +217,20 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
       "name": "불안 요인 명칭 (반복 가능한 개념)",
       "evidence": "상황 조건 → 반응 구조 형태로 작성 (최소 12자 이상)"
     }
-  ]
+  ],
+  "structure_flow": "드라이버들이 동시에 작동할 때의 상태를 3~4문장으로 설명 (50~300자)"
 }
 
 drivers는 3~5개 사이로 제한합니다.
 각 evidence는 최소 12자 이상으로 작성합니다.
+structure_flow는 50~300자 사이로 작성합니다.
 JSON 외의 텍스트는 절대 포함하지 마세요.`;
 
 // AI 응답 파싱용 타입 (meta_question, role 없음 - 서버에서 추가)
 interface AIResponse {
   summary: string;
   drivers: Array<{ name: string; evidence: string }>;
+  structure_flow: string; // v7.3: 드라이버들이 동시에 작동할 때의 상태 설명
 }
 
 // 안전 메시지 (JSON 파싱 실패 시)
@@ -226,9 +240,13 @@ const FALLBACK_DRIVERS: AnxietyDriver[] = [
   { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.', roleCategory: 'sustain' },
 ];
 
+// structure_flow 기본값
+const FALLBACK_STRUCTURE_FLOW = '위의 불안 요인들이 서로 맞물리며 현재의 불안 상태를 만들어내고 있습니다.';
+
 const FALLBACK_RESULT: AnalysisResult = {
   summary: '입력하신 내용을 분석하는 데 어려움이 있었습니다. 다시 시도해 주세요.',
   drivers: FALLBACK_DRIVERS,
+  structure_flow: FALLBACK_STRUCTURE_FLOW,
   meta_question: selectMetaQuestion(FALLBACK_DRIVERS),
   disallowed_check: {
     contains_advice: false,
@@ -265,7 +283,7 @@ function containsDisallowedPatterns(text: string): boolean {
   return DISALLOWED_PATTERNS.some((pattern) => lowerText.includes(pattern.toLowerCase()));
 }
 
-// JSON 파싱 및 검증 (AI는 summary + drivers만 반환)
+// JSON 파싱 및 검증 (AI는 summary + drivers + structure_flow 반환)
 function parseAndValidate(content: string): AIResponse | null {
   try {
     // JSON 블록 추출 시도
@@ -289,6 +307,14 @@ function parseAndValidate(content: string): AIResponse | null {
       if (!driver.evidence || driver.evidence.length < 12) {
         return null;
       }
+    }
+
+    // structure_flow 검증 (50~300자, 없으면 기본값 사용)
+    if (!parsed.structure_flow || parsed.structure_flow.length < 50) {
+      parsed.structure_flow = FALLBACK_STRUCTURE_FLOW;
+    } else if (parsed.structure_flow.length > 300) {
+      // 300자 초과 시 잘라냄
+      parsed.structure_flow = parsed.structure_flow.substring(0, 300);
     }
 
     // 금지 패턴 탐지 (summary)
@@ -369,12 +395,13 @@ export async function POST(request: NextRequest) {
     let isFallback = false;
 
     if (aiResponse) {
-      // AI 응답 성공: drivers에 roleCategory 추가 + meta_question + linked_driver 선택
+      // AI 응답 성공: drivers에 roleCategory 추가 + structure_flow + meta_question + linked_driver 선택
       const driversWithCategories = addRoleCategories(aiResponse.drivers);
       const { question: metaQuestion, linkedDriver } = selectMetaQuestionWithDriver(driversWithCategories);
       result = {
         summary: aiResponse.summary,
         drivers: driversWithCategories,
+        structure_flow: aiResponse.structure_flow,
         meta_question: metaQuestion,
         linked_driver: linkedDriver,
         disallowed_check: {

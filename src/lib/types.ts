@@ -18,6 +18,7 @@ export interface DisallowedCheck {
 export interface AnalysisResult {
   summary: string;
   drivers: AnxietyDriver[];
+  structure_flow: string; // v7.3: 드라이버들이 동시에 작동할 때의 상태 설명 (3~4문장)
   meta_question: string;
   linked_driver?: string; // v7: 질문과 연결된 드라이버명 (exact match)
   disallowed_check: DisallowedCheck;
