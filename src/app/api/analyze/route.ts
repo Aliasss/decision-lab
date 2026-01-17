@@ -1,48 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { AnalysisResult, AnalysisResponse, AnxietyDriver } from '@/lib/types';
+import type { AnalysisResult, AnalysisResponse, AnxietyDriver, RoleCategory } from '@/lib/types';
 
 // ============================================
-// 역할 태그 시스템 (v5)
+// 역할 카테고리 시스템 (v7: 키워드 점수 기반)
 // ============================================
 
-// 역할 태그 키워드 매핑
-const ROLE_TAG_KEYWORDS: Record<string, string[]> = {
-  '현재를 붙잡게 만드는 힘': ['안정', '유지', '현재', '익숙', '편안', '지금'],
-  '변화를 막는 힘': ['변화', '바꾸', '전환', '이동', '떠나'],
-  '미래를 두렵게 만드는 힘': ['미래', '앞으로', '나중', '언젠가', '될지'],
-  '결정을 미루게 만드는 힘': ['불확실', '모르', '확신', '보장', '예측'],
-  '통제 욕구를 키우는 힘': ['통제', '관리', '컨트롤', '조절', '잡고'],
-  '자기 평가를 흔드는 힘': ['정체성', '나라는', '자격', '능력', '가치'],
-  '타인 시선에 묶이게 하는 힘': ['타인', '시선', '평가', '인정', '기대', '실망'],
-  '과거에 붙잡히게 하는 힘': ['후회', '과거', '그때', '했었', '잘못'],
-  '시도를 막는 힘': ['실패', '실수', '잃', '망하', '안되'],
-  '현재를 부정하게 만드는 힘': ['비교', '남들', '다른 사람', '더 나은', '뒤처'],
+// 카테고리별 키워드 (점수 기반 매칭용)
+const CATEGORY_KEYWORDS: Record<RoleCategory, string[]> = {
+  amplify: ['실수', '위협', '급박', '공포', '폭발', '과대', '증폭', '커지', '확대', '실패', '잘못', '부족', '비교', '뒤처'],
+  sustain: ['책임', '의무', '해야', '준비', '완벽', '유지', '붙잡', '놓지', '통제', '관리', '미루', '보장', '확신'],
+  fixate: ['평가', '자존', '정체성', '인정', '시선', '능력', '자격', '증명', '타인', '기대', '실망', '나라는', '어떤 사람'],
 };
 
-// 기본 역할 태그
-const DEFAULT_ROLE_TAG = '불안을 키우는 힘';
+// 기본값: sustain (가장 무난)
+const DEFAULT_CATEGORY: RoleCategory = 'sustain';
 
-// driver.name에서 역할 태그 선택
-function selectRoleTag(driverName: string): string {
-  const lowerName = driverName.toLowerCase();
+// 키워드 점수 기반 roleCategory 판정 (index 기반 금지)
+function assignRoleCategory(driverName: string, evidence: string): RoleCategory {
+  const text = `${driverName} ${evidence}`.toLowerCase();
+  
+  const scores: Record<RoleCategory, number> = {
+    amplify: 0,
+    sustain: 0,
+    fixate: 0,
+  };
 
-  for (const [tag, keywords] of Object.entries(ROLE_TAG_KEYWORDS)) {
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const keyword of keywords) {
-      if (lowerName.includes(keyword.toLowerCase())) {
-        return tag;
+      if (text.includes(keyword.toLowerCase())) {
+        scores[category as RoleCategory]++;
       }
     }
   }
 
-  return DEFAULT_ROLE_TAG;
+  // 최고점 카테고리 선택, 동점이면 sustain
+  const maxScore = Math.max(...Object.values(scores));
+  if (maxScore === 0) return DEFAULT_CATEGORY;
+  
+  if (scores.amplify === maxScore) return 'amplify';
+  if (scores.fixate === maxScore) return 'fixate';
+  return 'sustain'; // 동점 또는 sustain 최고점
 }
 
-// drivers에 역할 태그 추가
-function addRoleTags(drivers: AnxietyDriver[]): AnxietyDriver[] {
-  return drivers.map((driver) => ({
+// drivers 전체에 roleCategory 적용 + 전부 sustain일 때만 보정
+function addRoleCategories(drivers: AnxietyDriver[]): AnxietyDriver[] {
+  const result = drivers.map((driver) => ({
     ...driver,
-    role: selectRoleTag(driver.name),
+    roleCategory: assignRoleCategory(driver.name, driver.evidence),
   }));
+
+  // 전부 sustain이면 첫 번째만 amplify로 보정
+  const allSustain = result.every((d) => d.roleCategory === 'sustain');
+  if (allSustain && result.length > 0) {
+    result[0].roleCategory = 'amplify';
+  }
+
+  return result;
 }
 
 // ============================================
@@ -93,12 +106,62 @@ function selectQuestionType(drivers: AnxietyDriver[]): 'A' | 'B' | 'C' {
   return 'C';
 }
 
-// 질문 타입에서 템플릿 랜덤 선택
-function selectMetaQuestion(drivers: AnxietyDriver[]): string {
-  const type = selectQuestionType(drivers);
-  const templates = QUESTION_TEMPLATES[type];
+// 질문 타입에서 템플릿 랜덤 선택 + 연결된 드라이버 반환
+function selectMetaQuestionWithDriver(drivers: AnxietyDriver[]): { question: string; linkedDriver: string } {
+  const scores: Record<'A' | 'B' | 'C', { total: number; bestDriver: string; bestScore: number }> = {
+    A: { total: 0, bestDriver: '', bestScore: 0 },
+    B: { total: 0, bestDriver: '', bestScore: 0 },
+    C: { total: 0, bestDriver: '', bestScore: 0 },
+  };
+
+  // 각 driver별로 타입 점수 계산
+  for (const driver of drivers) {
+    const driverText = `${driver.name} ${driver.evidence}`.toLowerCase();
+    
+    for (const [type, keywords] of Object.entries(QUESTION_TYPE_KEYWORDS)) {
+      let driverScore = 0;
+      for (const keyword of keywords) {
+        if (driverText.includes(keyword.toLowerCase())) {
+          driverScore++;
+        }
+      }
+      
+      const t = type as 'A' | 'B' | 'C';
+      scores[t].total += driverScore;
+      
+      // 이 타입에서 가장 높은 점수의 driver 추적
+      if (driverScore > scores[t].bestScore) {
+        scores[t].bestScore = driverScore;
+        scores[t].bestDriver = driver.name;
+      }
+    }
+  }
+
+  // 가장 높은 총점의 타입 선택
+  let selectedType: 'A' | 'B' | 'C' = 'A';
+  if (scores.A.total >= scores.B.total && scores.A.total >= scores.C.total) {
+    selectedType = 'A';
+  } else if (scores.B.total >= scores.C.total) {
+    selectedType = 'B';
+  } else {
+    selectedType = 'C';
+  }
+
+  const templates = QUESTION_TEMPLATES[selectedType];
   const randomIndex = Math.floor(Math.random() * templates.length);
-  return templates[randomIndex];
+  
+  // linkedDriver가 없으면 첫 번째 driver 사용
+  const linkedDriver = scores[selectedType].bestDriver || drivers[0]?.name || '';
+
+  return {
+    question: templates[randomIndex],
+    linkedDriver,
+  };
+}
+
+// 기존 호환용 (selectQuestionType 유지)
+function selectMetaQuestion(drivers: AnxietyDriver[]): string {
+  return selectMetaQuestionWithDriver(drivers).question;
 }
 
 // ============================================
@@ -125,13 +188,22 @@ const SYSTEM_PROMPT = `당신은 결정 직전 불안의 구조를 해석하는 
 - 예시: "연봉 협상 불안" (X) → "불확실성 회피" (O)
 - 다른 결정 상황에서도 적용될 수 있는 추상적 개념으로 명명
 
+중요: evidence 작성 규칙 (시점 일반화)
+- "당신은", "사용자는" 직접 지칭 금지
+- "상황 조건 → 반응 구조" 형태로 작성
+- 조건 표현 필수: "~할 때", "~상황에서", "~경우", "~느낄 때", "~앞에서"
+- 반응 표현 필수: "~하게 된다", "~경향이 있다", "~커진다", "~나타난다"
+- 좋은 예시: "성과나 평가가 중요한 상황에서, 스스로를 과하게 의심하게 되는 경향이 나타난다"
+- 좋은 예시: "신뢰를 잃을 수 있다고 느낄 때, 책임을 혼자 떠안는 방향으로 움직이게 된다"
+- 나쁜 예시: "너무 멍청하고 바보 같다고 느끼는 순간들이 많아지고 있다" (직접 지칭)
+
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "summary": "불안을 구조적으로 설명하는 2~3문장. 감정 위로 없이 구조만 설명",
   "drivers": [
     {
       "name": "불안 요인 명칭 (반복 가능한 개념)",
-      "evidence": "사용자 텍스트에서 찾은 근거 요약 (최소 12자 이상)"
+      "evidence": "상황 조건 → 반응 구조 형태로 작성 (최소 12자 이상)"
     }
   ]
 }
@@ -148,9 +220,9 @@ interface AIResponse {
 
 // 안전 메시지 (JSON 파싱 실패 시)
 const FALLBACK_DRIVERS: AnxietyDriver[] = [
-  { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.', role: DEFAULT_ROLE_TAG },
-  { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.', role: DEFAULT_ROLE_TAG },
-  { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.', role: DEFAULT_ROLE_TAG },
+  { name: '분석 불가', evidence: '텍스트를 다시 작성해 주세요.', roleCategory: 'amplify' },
+  { name: '입력 재검토 필요', evidence: '더 구체적인 상황 설명이 필요합니다.', roleCategory: 'sustain' },
+  { name: '맥락 부족', evidence: '결정 상황에 대한 배경을 추가해 주세요.', roleCategory: 'sustain' },
 ];
 
 const FALLBACK_RESULT: AnalysisResult = {
@@ -296,13 +368,14 @@ export async function POST(request: NextRequest) {
     let isFallback = false;
 
     if (aiResponse) {
-      // AI 응답 성공: drivers에 역할 태그 추가 + meta_question 선택
-      const driversWithRoles = addRoleTags(aiResponse.drivers);
-      const metaQuestion = selectMetaQuestion(driversWithRoles);
+      // AI 응답 성공: drivers에 roleCategory 추가 + meta_question + linked_driver 선택
+      const driversWithCategories = addRoleCategories(aiResponse.drivers);
+      const { question: metaQuestion, linkedDriver } = selectMetaQuestionWithDriver(driversWithCategories);
       result = {
         summary: aiResponse.summary,
-        drivers: driversWithRoles,
+        drivers: driversWithCategories,
         meta_question: metaQuestion,
+        linked_driver: linkedDriver,
         disallowed_check: {
           contains_advice: false,
           contains_recommendation: false,

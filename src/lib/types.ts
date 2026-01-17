@@ -1,9 +1,12 @@
 // MCP 룰 섹션 4: AI 출력 규칙 (JSON 계약)
 
+// v7: roleCategory만 저장, role(라벨)은 UI에서 매핑
+export type RoleCategory = 'amplify' | 'sustain' | 'fixate';
+
 export interface AnxietyDriver {
   name: string;
   evidence: string;
-  role?: string; // v5: 역할 태그 (서버에서 추가)
+  roleCategory?: RoleCategory; // v7: 키워드 점수 기반 판정
 }
 
 export interface DisallowedCheck {
@@ -16,6 +19,7 @@ export interface AnalysisResult {
   summary: string;
   drivers: AnxietyDriver[];
   meta_question: string;
+  linked_driver?: string; // v7: 질문과 연결된 드라이버명 (exact match)
   disallowed_check: DisallowedCheck;
 }
 

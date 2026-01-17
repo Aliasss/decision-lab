@@ -4,7 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { logEvent } from '@/lib/events';
 import { incrementUsageCount, clearPendingText, hasSessionId } from '@/lib/storage';
-import type { AnalysisResult } from '@/lib/types';
+import type { AnalysisResult, RoleCategory } from '@/lib/types';
+
+// v7: roleCategory를 라벨로 매핑 (UI에서만 사용)
+const ROLE_LABELS: Record<RoleCategory, string> = {
+  amplify: '불안을 증폭시키는 장치',
+  sustain: '불안을 지속시키는 장치',
+  fixate: '불안을 고착시키는 장치',
+};
 
 export default function ResultPage() {
   const router = useRouter();
@@ -94,8 +101,8 @@ export default function ResultPage() {
               >
                 <div className="flex items-baseline gap-2 mb-1">
                   <h3 className="font-medium text-foreground">{driver.name}</h3>
-                  {driver.role && (
-                    <span className="text-xs text-muted">({driver.role})</span>
+                  {driver.roleCategory && (
+                    <span className="text-xs text-muted">({ROLE_LABELS[driver.roleCategory]})</span>
                   )}
                 </div>
                 <p className="text-sm text-muted">{driver.evidence}</p>
@@ -121,6 +128,11 @@ export default function ResultPage() {
           <p className="text-xs text-muted mt-4">
             비슷한 결정 앞에서도, 이 질문은 다시 사용할 수 있습니다.
           </p>
+          {result.linked_driver && (
+            <p className="text-xs text-muted/60 mt-2">
+              — {result.linked_driver}
+            </p>
+          )}
         </section>
 
         {/* 피드백 질문 */}
