@@ -139,7 +139,7 @@ export default function WritePage() {
               className={`py-3 px-8 rounded-lg text-base font-medium transition-all flex items-center gap-2 ${
                 isValid && !isSubmitting
                   ? 'bg-accent text-white hover:opacity-90'
-                  : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
             >
               {isSubmitting ? (

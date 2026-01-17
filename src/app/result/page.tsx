@@ -109,7 +109,7 @@ export default function ResultPage() {
         </section>
 
         {/* 섹션 3: 메타 질문 */}
-        <section className="mb-12 p-6 bg-stone-100 rounded-lg">
+        <section className="mb-12 p-6 bg-slate-100 rounded-lg">
           {/* 연결 암시 문구 */}
           <p className="text-xs text-muted mb-3">
             위의 불안 드라이버 중 하나에서 이어진 질문입니다.
@@ -136,8 +136,8 @@ export default function ResultPage() {
                   helpfulAnswer === true
                     ? 'bg-accent text-white'
                     : helpfulAnswer === null
-                      ? 'bg-white border border-border hover:bg-stone-50'
-                      : 'bg-stone-100 text-stone-400'
+                      ? 'bg-white border border-border hover:bg-slate-50'
+                      : 'bg-slate-100 text-slate-400'
                 }`}
               >
                 예
@@ -149,8 +149,8 @@ export default function ResultPage() {
                   helpfulAnswer === false
                     ? 'bg-accent text-white'
                     : helpfulAnswer === null
-                      ? 'bg-white border border-border hover:bg-stone-50'
-                      : 'bg-stone-100 text-stone-400'
+                      ? 'bg-white border border-border hover:bg-slate-50'
+                      : 'bg-slate-100 text-slate-400'
                 }`}
               >
                 아니오
@@ -169,8 +169,8 @@ export default function ResultPage() {
                   reuseAnswer === true
                     ? 'bg-accent text-white'
                     : reuseAnswer === null
-                      ? 'bg-white border border-border hover:bg-stone-50'
-                      : 'bg-stone-100 text-stone-400'
+                      ? 'bg-white border border-border hover:bg-slate-50'
+                      : 'bg-slate-100 text-slate-400'
                 }`}
               >
                 예
@@ -182,8 +182,8 @@ export default function ResultPage() {
                   reuseAnswer === false
                     ? 'bg-accent text-white'
                     : reuseAnswer === null
-                      ? 'bg-white border border-border hover:bg-stone-50'
-                      : 'bg-stone-100 text-stone-400'
+                      ? 'bg-white border border-border hover:bg-slate-50'
+                      : 'bg-slate-100 text-slate-400'
                 }`}
               >
                 아니오

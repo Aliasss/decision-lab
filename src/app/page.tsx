@@ -47,7 +47,7 @@ export default function LandingPage() {
 
           <button
             onClick={handleNo}
-            className="w-full py-4 px-6 bg-transparent border border-border text-foreground rounded-lg text-lg font-medium hover:bg-stone-100 transition-colors"
+            className="w-full py-4 px-6 bg-transparent border border-border text-foreground rounded-lg text-lg font-medium hover:bg-slate-100 transition-colors"
           >
             아니오
           </button>
