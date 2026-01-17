@@ -80,8 +80,8 @@ export default function ResultPage() {
         </p>
 
         {/* 섹션 1: 불안 구조 요약 */}
-        <section className="mb-10">
-          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
+        <section className="mb-10 p-6 bg-white rounded-lg border border-border">
+          <h2 className="text-sm font-medium text-accent mb-3 uppercase tracking-wide">
             불안 구조 요약
           </h2>
           <p className="text-lg text-foreground leading-relaxed">{result.summary}</p>
@@ -89,14 +89,14 @@ export default function ResultPage() {
 
         {/* 섹션 2: 불안 드라이버 분해 */}
         <section className="mb-10">
-          <h2 className="text-sm font-medium text-muted mb-4 uppercase tracking-wide">
+          <h2 className="text-sm font-medium text-accent mb-4 uppercase tracking-wide">
             불안 드라이버
           </h2>
           <div className="space-y-4">
             {result.drivers.map((driver, index) => (
               <div
                 key={index}
-                className="p-4 border border-border rounded-lg bg-white break-words"
+                className="p-4 border border-border border-l-4 border-l-accent rounded-lg bg-white break-words"
                 style={{ overflowWrap: 'anywhere' }}
               >
                 <div className="flex items-baseline gap-2 mb-1">
@@ -116,12 +116,12 @@ export default function ResultPage() {
         </section>
 
         {/* 섹션 3: 메타 질문 */}
-        <section className="mb-12 p-6 bg-slate-100 rounded-lg">
+        <section className="mb-12 p-6 bg-accent/5 border border-accent/20 rounded-lg">
           {/* 연결 암시 문구 */}
           <p className="text-xs text-muted mb-3">
             위의 불안 드라이버 중 하나에서 이어진 질문입니다.
           </p>
-          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">
+          <h2 className="text-sm font-medium text-accent mb-3 uppercase tracking-wide">
             생각해볼 질문
           </h2>
           <p className="text-lg text-foreground font-medium">{result.meta_question}</p>
