@@ -13,6 +13,13 @@ const ROLE_LABELS: Record<RoleCategory, string> = {
   fixate: '불안을 고착시키는 장치',
 };
 
+// v7.4: roleCategory별 왼쪽 보더 색상 (시각적 역할 구분)
+const ROLE_BORDER_COLORS: Record<RoleCategory, string> = {
+  amplify: 'border-l-rose-400',   // 증폭 - 로즈/레드 계열
+  sustain: 'border-l-amber-400',  // 지속 - 앰버/옐로우 계열
+  fixate: 'border-l-sky-400',     // 고착 - 스카이/블루 계열
+};
+
 export default function ResultPage() {
   const router = useRouter();
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -96,7 +103,9 @@ export default function ResultPage() {
             {result.drivers.map((driver, index) => (
               <div
                 key={index}
-                className="p-4 border border-border border-l-4 border-l-accent rounded-lg bg-white break-words"
+                className={`p-4 border border-border border-l-4 rounded-lg bg-white break-words transition-all hover:shadow-sm ${
+                  driver.roleCategory ? ROLE_BORDER_COLORS[driver.roleCategory] : 'border-l-accent'
+                }`}
                 style={{ overflowWrap: 'anywhere' }}
               >
                 <div className="flex items-baseline gap-2 mb-1">
